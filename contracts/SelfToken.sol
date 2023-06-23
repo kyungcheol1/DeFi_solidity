@@ -5,8 +5,8 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract SelfToken is ERC20 {
-    address private tokenAddress;
-    address private deployAddress;
+    address public tokenAddress;
+    address public deployAddress;
 
     mapping(address => uint256) private balances;
     mapping(address => mapping(address => uint256)) private allowances;
