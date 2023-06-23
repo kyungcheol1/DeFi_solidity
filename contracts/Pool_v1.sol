@@ -34,6 +34,7 @@ contract Pool_v1 is Swap, LpHandle {
         uint256 amount;
         uint256 stakedTime;
         bool isWithdrawable;
+        address Lpaddress;
     }
 
     mapping(address => mapping(address => uint256)) public Accounts;
@@ -81,6 +82,10 @@ contract Pool_v1 is Swap, LpHandle {
         address _lptoken
     ) public {
         // token 주소들 넣어놓고 대조하는 require문 작성
+        require(
+            lpLevel[msg.sender][ARBaddress] == 1,
+            "wront LP level, check the level"
+        );
         address userAccount = msg.sender;
         setDeposit(msg.sender, _arbToken, arbAmount, _asdToken, asdAmount);
         uint lpAmount = calclending(
@@ -103,6 +108,37 @@ contract Pool_v1 is Swap, LpHandle {
         uint asdAmount,
         address _lptoken
     ) public {
+        require(
+            lpLevel[msg.sender][ARBaddress] == 2,
+            "wront LP level, check the level"
+        );
+        address userAccount = msg.sender;
+        setDeposit(msg.sender, _arbToken, arbAmount, _asdToken, asdAmount);
+        uint lpAmount = calclending(
+            _arbToken,
+            arbAmount,
+            _asdToken,
+            asdAmount,
+            _lptoken
+        );
+
+        ARBLpPool();
+        ARBLptoken.mint(lpAmount);
+        ARBLptoken.approve(userAccount, lpAmount);
+        ARBLptoken.transferFrom(ARBaddress, userAccount, lpAmount);
+    }
+
+    function ArbAsdPool_3(
+        address _arbToken,
+        address _asdToken,
+        uint arbAmount,
+        uint asdAmount,
+        address _lptoken
+    ) public {
+        require(
+            lpLevel[msg.sender][ARBaddress] == 3,
+            "wront LP level, check the level"
+        );
         address userAccount = msg.sender;
         setDeposit(msg.sender, _arbToken, arbAmount, _asdToken, asdAmount);
         uint lpAmount = calclending(
