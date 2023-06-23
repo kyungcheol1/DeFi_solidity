@@ -11,16 +11,15 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Pool_v1 is Swap, LpHandle {
     using SafeMath for uint256;
+    uint public poolLevel;
     uint private totalLpAmount;
     address private owner;
     address public contractAddress;
+    address public ASDAddress;
     address public VASDAddress;
     uint private totaltoken1;
     uint private totaltoken2;
     uint private receiveFeeAmount;
-    // SelfToken Ethtoken;
-    // SelfToken Usdttoken;
-    SelfToken ARBtoken;
     SelfToken ASDtoken;
     SelfToken VASDtoken;
     uint one_month = 2592000;
@@ -46,6 +45,8 @@ contract Pool_v1 is Swap, LpHandle {
     constructor(uint _feePercentage) Swap(_feePercentage) {
         owner = msg.sender;
         contractAddress = address(this);
+        ASDtoken = new SelfToken("ASD", "VASD");
+        ASDAddress = address(ASDtoken);
         VASDtoken = new SelfToken("VASD", "VASD");
         VASDAddress = address(VASDtoken);
     }
@@ -96,9 +97,7 @@ contract Pool_v1 is Swap, LpHandle {
             _lptoken
         );
         ARBLpPool();
-        ARBLptoken.mint(lpAmount);
-        ARBLptoken.approve(userAccount, lpAmount);
-        ARBLptoken.transferFrom(ARBaddress, userAccount, lpAmount);
+        ARBLpReward(userAccount, lpAmount);
     }
 
     function ArbAsdPool_2(
@@ -123,9 +122,10 @@ contract Pool_v1 is Swap, LpHandle {
         );
 
         ARBLpPool();
-        ARBLptoken.mint(lpAmount);
-        ARBLptoken.approve(userAccount, lpAmount);
-        ARBLptoken.transferFrom(ARBaddress, userAccount, lpAmount);
+        ARBLpReward(userAccount, lpAmount);
+        uint256 rewardToken = lpAmount / 100;
+        ASDtoken.approve(userAccount, rewardToken);
+        ASDtoken.transferFrom(contractAddress, userAccount, rewardToken);
     }
 
     function ArbAsdPool_3(
@@ -149,9 +149,10 @@ contract Pool_v1 is Swap, LpHandle {
             _lptoken
         );
         ARBLpPool();
-        ARBLptoken.mint(lpAmount);
-        ARBLptoken.approve(userAccount, lpAmount);
-        ARBLptoken.transferFrom(ARBaddress, userAccount, lpAmount);
+        ARBLpReward(userAccount, lpAmount);
+        uint256 rewardToken = lpAmount / 100;
+        VASDtoken.approve(userAccount, rewardToken);
+        VASDtoken.transferFrom(contractAddress, userAccount, rewardToken);
     }
 
     function ARBstake(uint256 month) external {
