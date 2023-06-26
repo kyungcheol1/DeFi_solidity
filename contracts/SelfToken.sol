@@ -139,7 +139,7 @@ contract SelfToken is ERC20 {
         return balances[account];
     }
 
-    function _burn(address account, uint256 amount) internal override {
+    function _burn(address account, uint256 amount) public override {
         require(account != address(0), "ERC20: burn from the zero address");
 
         _beforeTokenTransfer(account, address(0), amount);
