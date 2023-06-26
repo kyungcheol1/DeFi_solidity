@@ -184,52 +184,55 @@ contract Timelock {
     mapping(bytes32 => StableState) public proposals;
 
     uint public constant GRACE_PERIOD = 14 days;
-    uint public constant MINIMUM_DELAY = 2 days;
+    uint public constant MINIMUM_DELAY = 10;
     uint public constant MAXIMUM_DELAY = 30 days;
 
     uint delay;
 
     constructor(uint _delay, address _admin){
-        require(delay > MINIMUM_DELAY);
-        require(delay < MAXIMUM_DELAY);
+        require(_delay > MINIMUM_DELAY, "Timelock : Delay must be longer than 2 days.");
+        require(_delay < MAXIMUM_DELAY, "Timelock : Delay must be less than 30 days.");
 
         admin = _admin;
         delay = _delay;
     }
 
     function setDelay (uint _delay)public {
-        require(delay > MINIMUM_DELAY);
-        require(delay < MAXIMUM_DELAY);
+        require(_delay > MINIMUM_DELAY, "Timelock : Delay must be longer than 2 days.");
+        require(_delay < MAXIMUM_DELAY, "Timelock : Delay must be less than 30 days.");
 
         delay = _delay;
     }
 
-    function queueTransaction (bytes memory callData, uint256 _blockTime) public {
-        bytes32 hashdata = keccak256(callData);
+    function queueTransaction (bytes memory _callData, uint256 _blockTime) public {
+        bytes32 hashdata = keccak256(_callData);
         if(proposals[hashdata].blockTime == 0){
             proposals[hashdata] = StableState(false, false, _blockTime);
         }
     }
 
-    function cancelTransaction (bytes memory callData) public returns(bool){
-        require(msg.sender == admin);
-        bytes32 hashdata = keccak256(callData);
+    function cancelTransaction (bytes memory _callData) public returns(bool){
+        require(msg.sender == admin, "Timelock :  only owner");
+        bytes32 hashdata = keccak256(_callData);
         proposals[hashdata].canceled = true;
         return true;
     }
 
-    function excuteTransaction(bytes memory callData, uint256 etc) public returns(bool){
-        require(msg.sender == admin);
-        bytes32 hashdata = keccak256(callData);
-        require(etc > proposals[hashdata].blockTime.add(delay));
+    function executeTransaction(bytes memory _callData, uint256 etc) public returns(bool){
+        require(msg.sender == admin,  "Timelock :  only owner");
+        bytes32 hashdata = keccak256(_callData);
+        require(etc > proposals[hashdata].blockTime.add(delay), "Timelock : no timing");
         proposals[hashdata].status = true;
         return true;
     }
 
-
-    function getTransaction (bytes memory callData) public view returns(StableState memory) {
-        bytes32 hashdata = keccak256(callData);
+    function getTransaction (bytes memory _callData) public view returns(StableState memory) {
+        bytes32 hashdata = keccak256(_callData);
         return proposals[hashdata];
+    }
+
+    function getblock (bytes memory _callData)public view returns(bytes32){
+        return keccak256(_callData);
     }
 
 }
