@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-library Math {
+library SelfMath {
     function sqrt(uint256 x) internal pure returns (uint256) {
         if (x == 0) return 0;
         else if (x <= 3) return 1;

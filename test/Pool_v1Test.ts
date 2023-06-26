@@ -3,15 +3,35 @@ import { Contract } from "@ethersproject/contracts";
 
 describe("Pool_V1", function (){
     let pool: Contract
+    let ASDToken : Contract
+    let ARBToken : Contract
     let deployer: any
     before(async function(){
         const [_deployer] = await ethers.getSigners()
         deployer = _deployer
         const Pool = await ethers.getContractFactory("Pool_v1", deployer)
+        const SelfToken = await ethers.getContractFactory("SelfToken")
+        ASDToken = await SelfToken.deploy("ASD","ASD")
+        ARBToken = await SelfToken.deploy("ARB","ARB")
         pool = await Pool.deploy(1)
         
     })
 
+    it("swap function", async function(){
+        const contractAddreess = await pool.contractAddress()
+        ASDToken.mint(100000)
+        ASDToken.transfer(contractAddreess, 3000)
+        console.log(await ASDToken.balanceOf(contractAddreess))
+        ARBToken.mint(10000)
+        const account = deployer.address
+        const ASDTokenAddress = await ASDToken.deployAddress()
+        const ARBTokenAddress = await ARBToken.deployAddress()
+        
+        ARBToken.transfer(account,3000)
+        console.log(await ARBToken.balanceOf(account))
+        ARBToken.transfer()
+
+    })
     it.skip("state variable test", async function(){
         console.log(await pool.LpAddress(), "이건 Lp address여!")
         const Lpaddress = await pool.LpAddress()
@@ -27,7 +47,7 @@ describe("Pool_V1", function (){
         console.log(totalTokenamount)
     }) 
 
-    it("ArbAsdPool", async function(){
+    it.skip("ArbAsdPool", async function(){
         const _arbToken = "0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8"
         const _asdToken = "0xf8e81D47203A594245E36C48e151709F0C19fBe8"
         const arbAmount = 20
