@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.9;
 
-import "./Math.sol";
 import "./Swap.sol";
 import "./SelfToken.sol";
 import "./Lphandle.sol";
@@ -12,20 +11,22 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 contract Pool_v1 is Swap, LpHandle {
     using SafeMath for uint256;
     uint public poolLevel;
-    uint private totalLpAmount;
+    uint public totalLpAmount;
     address private owner;
     address public contractAddress;
     address public ASDAddress;
     address public VASDAddress;
-    uint private totaltoken1;
-    uint private totaltoken2;
-    uint private receiveFeeAmount;
+    uint public totaltoken1;
+    uint public totaltoken2;
+    uint public receiveFeeAmount;
+    uint public previousLp;
     SelfToken ASDtoken;
     SelfToken VASDtoken;
     uint one_month = 2592000;
     uint four_month = 11836800;
     uint eight_month = 23673600;
     uint stakePid = 0;
+    uint decimals = 1000000000;
 
     event CalcLendingEvent(uint tokenTotalLp);
 
@@ -35,20 +36,43 @@ contract Pool_v1 is Swap, LpHandle {
         bool isWithdrawable;
         address Lpaddress;
     }
-
-    mapping(address => mapping(address => uint256)) public Accounts;
-    mapping(address => uint256) public Lpcalc;
+    /** 
+    @dev Acoounts는 첫번째로 pool에 스테이킹을 하는 Lp토큰을 받는 mapping데이터에 대한 설명입니다. 
+    address_1 user의 계정
+    address_2 어떤 lp token을 받았는지 
+    address_3 어떤 토큰들을 예치할것인지
+    uint 그 토큰을 얼마나 예치했는지 확인하는 것 
+    */
+    mapping(address => mapping(address => mapping(address => uint)))
+        public Accounts;
+    /**
+    @dev Lpcalc는 Lp를 총 계산하는데 쓰이는 객체입니다. 
+    lp 총 계산하는데 쓰이는 객체
+    address_1: address 는 어떤 Lp 풀인가
+    address_2: 어떤 토큰인가
+    uint256: 얼마나 예치했는지
+     */
+    mapping(address => mapping(address => uint256)) public Lpcalc;
+    /**
+    @dev stakeInfo는 staking을 할떄 쓰이는 객체입니다. 
+    uint256_1 month(얼마나 예치할건지)
+    address_1 누가 예치했는지
+    uint256_2 PID
+    StakeInfo는 staking관련 정보들인데 
+    4-1 얼마나 예치했는지(LP를!)
+    4-2 는 stake한 시간이 언제인지
+    4-3 스테이킹을 종료할 수 있는지, 아닌지
+    4-4 어떤 Lp토큰을 예치했는지 
+     */
     mapping(uint256 => mapping(address => mapping(uint256 => StakeInfo)))
         public stakeInfo;
-    mapping(address => mapping(address => uint256)) lpLevel;
 
     constructor(uint _feePercentage) Swap(_feePercentage) {
         owner = msg.sender;
         contractAddress = address(this);
-        ASDtoken = new SelfToken("ASD", "VASD");
-        ASDAddress = address(ASDtoken);
         VASDtoken = new SelfToken("VASD", "VASD");
         VASDAddress = address(VASDtoken);
+        poolLevel = 1;
     }
 
     modifier checkOwner() {
@@ -67,92 +91,139 @@ contract Pool_v1 is Swap, LpHandle {
         feePercentage = _feePercentage;
     }
 
-    function ArbapproveSwap(
-        address _arbToken,
-        address _asdToken,
-        uint arbAmount
-    ) public {
-        ArbAsdSwapTokens(SelfToken(_arbToken), SelfToken(_asdToken), arbAmount);
-    }
-
     function ArbAsdPool_1(
-        address _arbToken,
-        address _asdToken,
-        uint arbAmount,
-        uint asdAmount,
-        address _lptoken
+        address _Arbtoken1,
+        uint256 _amount1,
+        address _Asdtoken2,
+        uint256 _amount2
     ) public {
-        // token 주소들 넣어놓고 대조하는 require문 작성
         require(
-            lpLevel[msg.sender][ARBaddress] == 1,
-            "wront LP level, check the level"
+            _amount1 >= 1 && _amount2 >= _amount1 * ArbSwapPercent,
+            "Please set the minimum proportion"
         );
-        address userAccount = msg.sender;
-        setDeposit(msg.sender, _arbToken, arbAmount, _asdToken, asdAmount);
-        uint lpAmount = calclending(
-            _arbToken,
-            arbAmount,
-            _asdToken,
-            asdAmount,
-            _lptoken
-        );
+        require(poolLevel == 1, "check the pool level");
         ARBLpPool();
-        ARBLpReward(userAccount, lpAmount);
+        SelfToken(_Arbtoken1).transferFrom(msg.sender, address(this), _amount1);
+        SelfToken(_Asdtoken2).transferFrom(msg.sender, address(this), _amount2);
+        Accounts[msg.sender][ARBLpaddress][_Arbtoken1] += _amount1;
+        Accounts[msg.sender][ARBLpaddress][_Asdtoken2] += _amount2;
+        uint256 calcLp = calclending(
+            _Arbtoken1,
+            Accounts[msg.sender][ARBLpaddress][_Arbtoken1],
+            _Asdtoken2,
+            Accounts[msg.sender][ARBLpaddress][_Asdtoken2]
+        );
+        Lpcalc[ARBLpaddress][_Arbtoken1] += _amount1;
+        Lpcalc[ARBLpaddress][_Asdtoken2] += _amount2;
+        ARBLpReward(msg.sender, calcLp);
+        totalLpAmount += calcLp;
     }
 
     function ArbAsdPool_2(
-        address _arbToken,
-        address _asdToken,
-        uint arbAmount,
-        uint asdAmount,
-        address _lptoken
+        address _Arbtoken1,
+        uint256 _amount1,
+        address _Asdtoken2,
+        uint256 _amount2
     ) public {
         require(
-            lpLevel[msg.sender][ARBaddress] == 2,
-            "wront LP level, check the level"
+            _amount1 >= 1 && _amount2 >= _amount1 * ArbSwapPercent,
+            "Please set the minimum proportion"
         );
-        address userAccount = msg.sender;
-        setDeposit(msg.sender, _arbToken, arbAmount, _asdToken, asdAmount);
-        uint lpAmount = calclending(
-            _arbToken,
-            arbAmount,
-            _asdToken,
-            asdAmount,
-            _lptoken
-        );
-
+        require(poolLevel == 1, "check the pool level");
         ARBLpPool();
-        ARBLpReward(userAccount, lpAmount);
-        uint256 rewardToken = lpAmount / 100;
-        ASDtoken.approve(userAccount, rewardToken);
-        ASDtoken.transferFrom(contractAddress, userAccount, rewardToken);
+        SelfToken(_Arbtoken1).transferFrom(msg.sender, address(this), _amount1);
+        SelfToken(_Asdtoken2).transferFrom(msg.sender, address(this), _amount2);
+        Accounts[msg.sender][ARBLpaddress][_Arbtoken1] += _amount1;
+        Accounts[msg.sender][ARBLpaddress][_Asdtoken2] += _amount2;
+        uint256 calcLp = calclending(
+            _Arbtoken1,
+            Accounts[msg.sender][ARBLpaddress][_Arbtoken1],
+            _Asdtoken2,
+            Accounts[msg.sender][ARBLpaddress][_Asdtoken2]
+        );
+        Lpcalc[ARBLpaddress][_Arbtoken1] += _amount1;
+        Lpcalc[ARBLpaddress][_Asdtoken2] += _amount2;
+        ARBLpReward(msg.sender, calcLp);
+        totalLpAmount += calcLp;
     }
 
     function ArbAsdPool_3(
-        address _arbToken,
-        address _asdToken,
-        uint arbAmount,
-        uint asdAmount,
-        address _lptoken
+        address _Arbtoken1,
+        uint256 _amount1,
+        address _Asdtoken2,
+        uint256 _amount2
     ) public {
         require(
-            lpLevel[msg.sender][ARBaddress] == 3,
-            "wront LP level, check the level"
+            _amount1 >= 1 && _amount2 >= _amount1 * ArbSwapPercent,
+            "Please set the minimum proportion"
         );
-        address userAccount = msg.sender;
-        setDeposit(msg.sender, _arbToken, arbAmount, _asdToken, asdAmount);
-        uint lpAmount = calclending(
-            _arbToken,
-            arbAmount,
-            _asdToken,
-            asdAmount,
-            _lptoken
-        );
+        require(poolLevel == 1, "check the pool level");
         ARBLpPool();
-        ARBLpReward(userAccount, lpAmount);
-        uint256 rewardToken = lpAmount / 100;
-        VASDtoken.approve(userAccount, rewardToken);
-        VASDtoken.transferFrom(contractAddress, userAccount, rewardToken);
+        SelfToken(_Arbtoken1).transferFrom(msg.sender, address(this), _amount1);
+        SelfToken(_Asdtoken2).transferFrom(msg.sender, address(this), _amount2);
+        Accounts[msg.sender][ARBLpaddress][_Arbtoken1] += _amount1;
+        Accounts[msg.sender][ARBLpaddress][_Asdtoken2] += _amount2;
+        uint256 calcLp = calclending(
+            _Arbtoken1,
+            Accounts[msg.sender][ARBLpaddress][_Arbtoken1],
+            _Asdtoken2,
+            Accounts[msg.sender][ARBLpaddress][_Asdtoken2]
+        );
+        Lpcalc[ARBLpaddress][_Arbtoken1] += _amount1;
+        Lpcalc[ARBLpaddress][_Asdtoken2] += _amount2;
+        ARBLpReward(msg.sender, calcLp);
+        totalLpAmount += calcLp;
+    }
+
+    function withdrawArbLp(
+        address _Lptoken,
+        address _Arbtoken,
+        address _Asdtoken,
+        uint256 _amount
+    ) public {
+        require(_Lptoken == ARBLpaddress, "please send correct token");
+        require(
+            SelfToken(_Lptoken).totalSupply() >= _amount,
+            "insufficient lp amount"
+        );
+        uint256 lpcalcparams = _amount * decimals;
+        uint256 lpcalcpercent = lpcalcparams / totalLpAmount;
+        uint256 withdrawArb1 = (Lpcalc[_Lptoken][_Arbtoken] * lpcalcpercent) /
+            decimals;
+        uint256 withdrawAsd2 = (Lpcalc[_Lptoken][_Asdtoken] * lpcalcpercent) /
+            decimals;
+        ARBLptoken.transferFrom(msg.sender, address(this), _amount);
+        SelfToken(_Arbtoken).transferFrom(
+            address(this),
+            msg.sender,
+            withdrawArb1
+        );
+        SelfToken(_Asdtoken).transferFrom(
+            address(this),
+            msg.sender,
+            withdrawAsd2
+        );
+    }
+
+    function calclending(
+        address _token1,
+        uint256 amount1,
+        address _token2,
+        uint256 amount2
+    ) public returns (uint) {
+        if (
+            SelfToken(_token1).balanceOf(address(this)) > 0 &&
+            SelfToken(_token2).balanceOf(address(this)) > 0
+        ) {
+            totaltoken1 = SelfToken(_token1).balanceOf(address(this));
+            totaltoken2 = SelfToken(_token2).balanceOf(address(this));
+            previousLp = (SelfToken(_token1).balanceOf(address(this)) *
+                SelfToken(_token2).balanceOf(address(this))).sqrt();
+        }
+        uint totalAmount = (SelfToken(_token1).balanceOf(address(this)) +
+            amount1) * (SelfToken(_token2).balanceOf(address(this)) + amount2);
+        uint totallpAmount = totalAmount.sqrt() - previousLp;
+        return totallpAmount;
     }
 
     function ARBstake(uint256 month) external {
@@ -198,22 +269,22 @@ contract Pool_v1 is Swap, LpHandle {
     ) external returns (bool) {
         if (
             _month == 4 &&
-            block.timestamp >
-            stakeInfo[4][msg.sender][_index].stakedTime + one_month
+            block.timestamp > stakeInfo[4][msg.sender][_index].stakedTime + 5
+            // stakeInfo[4][msg.sender][_index].stakedTime + one_month
         ) {
             stakeInfo[4][msg.sender][_index].isWithdrawable = true;
         }
         if (
             _month == 8 &&
-            block.timestamp >
-            stakeInfo[8][msg.sender][_index].stakedTime + one_month
+            block.timestamp > stakeInfo[8][msg.sender][_index].stakedTime + 5
+            // stakeInfo[8][msg.sender][_index].stakedTime + four_month
         ) {
             stakeInfo[8][msg.sender][_index].isWithdrawable = true;
         }
         if (
             _month == 12 &&
-            block.timestamp >
-            stakeInfo[12][msg.sender][_index].stakedTime + one_month
+            block.timestamp > stakeInfo[12][msg.sender][_index].stakedTime + 5
+            // stakeInfo[12][msg.sender][_index].stakedTime + one_month
         ) {
             stakeInfo[12][msg.sender][_index].isWithdrawable = true;
         }
@@ -229,39 +300,6 @@ contract Pool_v1 is Swap, LpHandle {
         ARBLptoken.transferFrom(address(this), msg.sender, withDrawAmount);
     }
 
-    function setDeposit(
-        address _user,
-        address _token1,
-        uint256 _amount1,
-        address _token2,
-        uint256 _amount2
-    ) public {
-        Accounts[_user][_token1] = _amount1;
-        Accounts[_user][_token2] = _amount2;
-        Lpcalc[_token1] += _amount1;
-        Lpcalc[_token2] += _amount2;
-    }
-
-    function calclending(
-        address _token1,
-        uint amount1,
-        address _token2,
-        uint amount2,
-        address _lptoken
-    ) public returns (uint) {
-        SelfToken(_lptoken);
-        uint totalTokenamount = SelfToken(_lptoken).totalSupply() +
-            amount1 +
-            amount2;
-        totalLpAmount = Lpcalc[_token1] * Lpcalc[_token2];
-        uint token1Percent = ((amount1 * 100) / totalTokenamount);
-        uint token2Percent = ((amount2 * 100) / totalTokenamount);
-        uint token1Lp = (totalTokenamount * token1Percent) / 100;
-        uint token2Lp = (totalTokenamount * token2Percent) / 100;
-        uint tokenTotalLp = token1Lp + token2Lp;
-        return tokenTotalLp;
-    }
-
     function whatLpcheck(address _lptoken) public view returns (uint) {
         address userAccount = msg.sender;
         return SelfToken(_lptoken).balanceOf(userAccount);
@@ -269,5 +307,13 @@ contract Pool_v1 is Swap, LpHandle {
 
     function whatLpPoolCheck(address _lptoken) public view returns (uint) {
         return SelfToken(_lptoken).totalSupply();
+    }
+
+    function whoVasdPoolCheck(address _account) public view returns (uint) {
+        return VASDtoken.balanceOf(_account);
+    }
+
+    function vasdPoolCheck() public view returns (uint) {
+        return VASDtoken.totalSupply();
     }
 }

@@ -29,7 +29,7 @@ contract SelfToken is ERC20 {
         address to,
         uint256 amount
     ) public override returns (bool) {
-        address owner = deployAddress;
+        address owner = address(this);
         _transfer(owner, to, amount);
         return true;
     }
@@ -49,7 +49,7 @@ contract SelfToken is ERC20 {
         uint256 amount
     ) public override returns (bool) {
         _transfer(from, to, amount);
-        _spendAllowance(from, to, amount);
+        // _spendAllowance(from, to, amount);
         return true;
     }
 
