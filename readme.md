@@ -73,3 +73,319 @@ gover 주소 : 0x2905462d901930ef98f7BdA835602086Aff97612
 
 1: 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
 2: 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+
+# proxy 용 코드
+
+```js
+ function initialize(address _feeRecipient, uint _feePercentage) public {
+        owner = msg.sender;
+        contractAddress = address(this);
+        feeRecipient = _feeRecipients;
+        feePercentage = _feePercentage;
+    }
+```
+
+da
+0.03\* 100000000
+
+3000000
+
+# 토큰 개수
+
+1000000000000000000 -> 10 토큰
+10000000000000000000 -> 100 토큰
+100000000000000000000
+
+# 팩토리 코드
+
+```js
+function ArbAsdPool_1(
+    address _Arbtoken,
+    uint256 _Arbamount,
+    address _Asdtoken,
+    uint256 _Asdamount
+) public {}
+    require(
+        _Arbamount >= 1 && _Asdamount >= _Arbamount * ArbSwapPercent,
+        "Please set the minimum proportion"
+    );
+    require(pool.ARBPoolLevel() == 1, "check the pool level");
+    pool.ARBLpPool();
+    address userAccount = msg.sender;
+    pool.ArbAsdStaking(
+        _Arbtoken,
+        _Arbamount,
+        _Asdtoken,
+        _Asdamount,
+        userAccount,
+        contractAddress
+    );
+    ARBLpaddress = pool.ARBLpaddress();
+    Accounts[userAccount][ARBLpaddress][_Arbtoken] += _Arbamount;
+    Accounts[userAccount][ARBLpaddress][_Asdtoken] += _Asdamount;
+    uint256 calcLp = calclending(
+        _Arbtoken,
+        Accounts[userAccount][ARBLpaddress][_Arbtoken],
+        _Asdtoken,
+        Accounts[userAccount][ARBLpaddress][_Asdtoken]
+    );
+    Lpcalc[ARBLpaddress][_Arbtoken] += _Arbamount;
+    Lpcalc[ARBLpaddress][_Asdtoken] += _Asdamount;
+    pool.ARBLpReward(userAccount, calcLp);
+    totalLpAmount += calcLp;
+}
+
+function ArbAsdPool_2(
+    address _Arbtoken,
+    uint256 _Arbamount,
+    address _Asdtoken,
+    uint256 _Asdamount
+) public {
+    require(
+        _Arbamount >= 1 && _Asdamount >= _Arbamount * ArbSwapPercent,
+        "Please set the minimum proportion"
+    );
+    require(pool.ARBPoolLevel() == 2, "check the pool level");
+    pool.ARBLpPool();
+    address userAccount = msg.sender;
+    pool.ArbAsdStaking(
+        _Arbtoken,
+        _Arbamount,
+        _Asdtoken,
+        _Asdamount,
+        userAccount,
+        contractAddress
+    );
+    Accounts[userAccount][ARBLpaddress][_Arbtoken] += _Arbamount;
+    Accounts[userAccount][ARBLpaddress][_Asdtoken] += _Asdamount;
+    uint256 calcLp = calclending(
+        _Arbtoken,
+        Accounts[userAccount][ARBLpaddress][_Arbtoken],
+        _Asdtoken,
+        Accounts[userAccount][ARBLpaddress][_Asdtoken]
+    );
+    Lpcalc[ARBLpaddress][_Arbtoken] += _Arbamount;
+    Lpcalc[ARBLpaddress][_Asdtoken] += _Asdamount;
+    pool.ARBLpReward(userAccount, calcLp);
+    SelfToken(_Asdtoken).mint(83000);
+    uint256 rewardPercent = ((SelfToken(_Asdtoken).balanceOf(userAccount) *
+        decimals) / SelfToken(_Asdtoken).totalSupply()) / decimals;
+    uint256 rewardToken = (83000 * rewardPercent) / 100;
+    SelfToken(_Asdtoken).transfer(userAccount, rewardToken);
+    totalLpAmount += calcLp;
+}
+
+function ArbAsdPool_3(
+    address _Arbtoken,
+    uint256 _Arbamount,
+    address _Asdtoken,
+    uint256 _Asdamount
+) public {
+    require(
+        _Arbamount >= 1 && _Asdamount >= _Arbamount * ArbSwapPercent,
+        "Please set the minimum proportion"
+    );
+    require(pool.ARBPoolLevel() == 3, "check the pool level");
+    pool.ARBLpPool();
+    address userAccount = msg.sender;
+    pool.ArbAsdStaking(
+        _Arbtoken,
+        _Arbamount,
+        _Asdtoken,
+        _Asdamount,
+        userAccount,
+        contractAddress
+    );
+    Accounts[userAccount][ARBLpaddress][_Arbtoken] += _Arbamount;
+    Accounts[userAccount][ARBLpaddress][_Asdtoken] += _Asdamount;
+    uint256 calcLp = calclending(
+        _Arbtoken,
+        Accounts[userAccount][ARBLpaddress][_Arbtoken],
+        _Asdtoken,
+        Accounts[userAccount][ARBLpaddress][_Asdtoken]
+    );
+    Lpcalc[ARBLpaddress][_Arbtoken] += _Arbamount;
+    Lpcalc[ARBLpaddress][_Asdtoken] += _Asdamount;
+    pool.ARBLpReward(userAccount, calcLp);
+    uint VASDAmount = SelfToken(ARBLpaddress).balanceOf(msg.sender);
+    VASDtoken.mint(VASDAmount);
+    VASDtoken.transfer(userAccount, VASDAmount);
+    totalLpAmount += calcLp;
+}
+
+function withdrawArbLp(
+    address _Lptoken,
+    address _Arbtoken,
+    address _Asdtoken,
+    uint256 _amount
+) public {
+    require(_Lptoken == ARBLpaddress, "please send correct token");
+    require(
+        SelfToken(_Lptoken).totalSupply() >= _amount,
+        "insufficient lp amount"
+    );
+    address userAccount = msg.sender;
+    uint256 lpcalcparams = _amount * decimals;
+    uint256 lpcalcpercent = lpcalcparams / totalLpAmount;
+    uint256 withdrawArb1 = (Lpcalc[_Lptoken][_Arbtoken] * lpcalcpercent) /
+        decimals;
+    uint256 withdrawAsd2 = (Lpcalc[_Lptoken][_Asdtoken] * lpcalcpercent) /
+        decimals;
+    SelfToken(ARBLpaddress).transferFrom(
+        userAccount,
+        address(this),
+        _amount
+    );
+    SelfToken(ARBLpaddress)._burn(address(this), _amount);
+    SelfToken(_Arbtoken).transferFrom(
+        userAccount,
+        msg.sender,
+        withdrawArb1
+    );
+    SelfToken(_Asdtoken).transferFrom(
+        userAccount,
+        msg.sender,
+        withdrawAsd2
+    );
+}
+
+function calclending(
+    address _token1,
+    uint256 amount1,
+    address _token2,
+    uint256 amount2
+) public returns (uint) {
+    if (
+        SelfToken(_token1).balanceOf(address(this)) > 0 &&
+        SelfToken(_token2).balanceOf(address(this)) > 0
+    ) {
+        previousLp = (SelfToken(_token1).balanceOf(address(this)) *
+            SelfToken(_token2).balanceOf(address(this))).sqrt();
+    }
+    uint totalAmount = (SelfToken(_token1).balanceOf(address(this)) +
+        amount1) * (SelfToken(_token2).balanceOf(address(this)) + amount2);
+    uint totallpAmount = totalAmount.sqrt() - previousLp;
+    return totallpAmount;
+}
+
+function ARBstake(uint256 month) external {
+    uint256 userLpBalance = SelfToken(ARBLpaddress).balanceOf(msg.sender);
+    if (month == 4) {
+        ARBstakeLp(month, userLpBalance);
+        stakeVASD(userLpBalance);
+    } else if (month == 8) {
+        ARBstakeLp(month, userLpBalance);
+        stakeVASD(2 * userLpBalance);
+    } else if (month == 12) {
+        ARBstakeLp(month, userLpBalance);
+        stakeVASD(4 * userLpBalance);
+    } else {
+        revert("wrong month");
+    }
+}
+
+function ARBstakeLp(uint256 _month, uint256 _amount) internal {
+    require(_amount > 0, "cannot stake 0Lp tokens");
+    address userAccount = msg.sender;
+    SelfToken(ARBLpaddress).approve(userAccount, _amount);
+    SelfToken(ARBLpaddress).transferFrom(
+        userAccount,
+        address(this),
+        _amount
+    );
+    uint256 currentStakeId = stakePid;
+    stakeInfo[_month][msg.sender][currentStakeId].amount = _amount;
+    stakeInfo[_month][msg.sender][currentStakeId].stakedTime = block
+        .timestamp;
+    stakeInfo[_month][msg.sender][currentStakeId].isWithdrawable = false;
+    stakePid += 1;
+}
+
+function stakeVASD(uint256 _amount) internal {
+    require(_amount > 0, "cannot stake 0Lp tokens");
+    address userAccount = msg.sender;
+    VASDtoken.mint(_amount);
+    VASDtoken.approve(userAccount, _amount);
+    VASDtoken.transferFrom(VASDAddress, userAccount, _amount);
+}
+
+function WithdrawChange(
+    uint256 _month,
+    uint256 _index
+) external returns (bool) {
+    if (
+        _month == 4 &&
+        block.timestamp > stakeInfo[4][msg.sender][_index].stakedTime + 5
+        // stakeInfo[4][msg.sender][_index].stakedTime + one_month
+    ) {
+        stakeInfo[4][msg.sender][_index].isWithdrawable = true;
+    }
+    if (
+        _month == 8 &&
+        block.timestamp > stakeInfo[8][msg.sender][_index].stakedTime + 5
+        // stakeInfo[8][msg.sender][_index].stakedTime + four_month
+    ) {
+        stakeInfo[8][msg.sender][_index].isWithdrawable = true;
+    }
+    if (
+        _month == 12 &&
+        block.timestamp > stakeInfo[12][msg.sender][_index].stakedTime + 5
+        // stakeInfo[12][msg.sender][_index].stakedTime + one_month
+    ) {
+        stakeInfo[12][msg.sender][_index].isWithdrawable = true;
+    }
+    return stakeInfo[_month][msg.sender][_index].isWithdrawable;
+}
+
+function ARBwithDraw(uint256 _month, uint256 _index) public {
+    require(
+        stakeInfo[_month][msg.sender][_index].isWithdrawable,
+        "not yet"
+    );
+    uint256 withDrawAmount = stakeInfo[_month][msg.sender][_index].amount;
+    SelfToken(ARBLpaddress).transferFrom(
+        address(this),
+        msg.sender,
+        withDrawAmount
+    );
+    uint256 userVASDAmount = VASDtoken.balanceOf(msg.sender);
+    VASDtoken.transferFrom(msg.sender, address(this), userVASDAmount);
+    VASDtoken._burn(address(this), userVASDAmount);
+}
+
+function proposalLvcheck(address _token, uint256 _level) external {
+    if (_token == pool.ARBLpaddress()) {
+        pool.ARBpoolLv(_level);
+    }
+    if (_token == pool.ETHLpaddress()) {
+        pool.ETHpoolLv(_level);
+    }
+    if (_token == pool.USDTLpaddress()) {
+        pool.USDTpoolLv(_level);
+    }
+}
+
+function whatLpcheck(address _lptoken) public view returns (uint) {
+    address userAccount = msg.sender;
+    return SelfToken(_lptoken).balanceOf(userAccount);
+}
+
+function whatLpPoolCheck(address _lptoken) public view returns (uint) {
+    return SelfToken(_lptoken).totalSupply();
+}
+
+function whoVasdPoolCheck(address _account) public view returns (uint) {
+    return VASDtoken.balanceOf(_account);
+}
+
+function vasdPoolCheck() public view returns (uint) {
+    return VASDtoken.totalSupply();
+}
+```
+
+```js
+import "@openzeppelin/contracts/utils/Strings.sol";
+if (Strings.equal(name, "ETH")) price = getEthPrice();
+else if (Strings.equal(name, "USDT")) price = getUsdtPrice();
+else if (Strings.equal(name, "ARB")) price = getArbPrice();
+```

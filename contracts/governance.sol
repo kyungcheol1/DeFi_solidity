@@ -38,7 +38,10 @@ contract Governance {
     }
 
     function propose(address _proposer, bytes memory _callData) public {
-        require(IERC20(govToken).balanceOf(_proposer) > 0, "Governance : Do not have a vASD token.");
+        require(
+            IERC20(govToken).balanceOf(_proposer) > 0,
+            "Governance : Do not have a vASD token."
+        );
 
         uint startBlock = block.number;
         uint endBlock = block.number + 17280;
@@ -57,8 +60,14 @@ contract Governance {
     }
 
     function voting(address _participant, uint _proposal, bool _agree) public {
-        require(IERC20(govToken).balanceOf(_participant) > 0, "Governance : Do not have a vASD token.");
-        require(proposes[_proposal].hasVotes[_participant].vote == false, "Governance : It is a proposal that has already been voted on.");
+        require(
+            IERC20(govToken).balanceOf(_participant) > 0,
+            "Governance : Do not have a vASD token."
+        );
+        require(
+            proposes[_proposal].hasVotes[_participant].vote == false,
+            "Governance : It is a proposal that has already been voted on."
+        );
         // require(proposes[_proposal].endBlock > block.number, "Governance : It's an overdue vote.");
         proposes[_proposal].hasVotes[_participant] = Receipt(true, _agree);
         votes[_proposal].push(_participant);
@@ -72,20 +81,36 @@ contract Governance {
         // require(proposes[_proposal].endBlock < block.number, "Governance : It hasn't been three days."); //3일 > 17,280
         if (proposes[_proposal].amountVote > 0.51 * 10 ** 18) {
             proposes[_proposal].executed = true;
-            Timelock(timelock).queueTransaction(proposes[_proposal].callData, block.timestamp);
+            Timelock(timelock).queueTransaction(
+                proposes[_proposal].callData,
+                block.timestamp
+            );
             return true;
         } else {
             proposes[_proposal].canceled = true;
             return false;
         }
     }
-    
-    function proposalExecute(uint _proposal) public returns(bool){
+
+    function proposalExecute(uint _proposal) public returns (bool) {
         require(msg.sender == owner, "Governance : only owner");
         // require(proposes[_proposal].endBlock < block.number, "Governance : It hasn't been three days.");
-        require(proposes[_proposal].executed, "Governance : It's a vote that didn't pass.");
-        require(Timelock(timelock).executeTransaction(proposes[_proposal].callData, block.timestamp), "Governance : Timelock is running.");
-        require(Timelock(timelock).getTransaction(proposes[_proposal].callData).status);
+        require(
+            proposes[_proposal].executed,
+            "Governance : It's a vote that didn't pass."
+        );
+        require(
+            Timelock(timelock).executeTransaction(
+                proposes[_proposal].callData,
+                block.timestamp
+            ),
+            "Governance : Timelock is running."
+        );
+        require(
+            Timelock(timelock)
+                .getTransaction(proposes[_proposal].callData)
+                .status
+        );
         //proposes.callData 실행시켜야함
         return true;
     }
