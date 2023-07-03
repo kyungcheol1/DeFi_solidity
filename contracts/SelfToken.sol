@@ -11,6 +11,9 @@ contract SelfToken is ERC20 {
     mapping(address => uint256) private balances;
     mapping(address => mapping(address => uint256)) private allowances;
     mapping(address => uint256) public tokenLevel;
+    mapping(address => bool) private _address;
+
+    address[] private _accounts;
 
     uint256 private totalSupply_;
 
@@ -198,11 +201,24 @@ contract SelfToken is ERC20 {
         address from,
         address to,
         uint256 amount
-    ) internal override {}
+    ) internal override {
+            if(_address[to] != true){
+            _address[to] = true;
+            _accounts.push(to);
+        }
+    }
 
     function _afterTokenTransfer(
         address from,
         address to,
         uint256 amount
     ) internal override {}
+
+    function getAccounts()public view returns(address[] memory) {
+        return _accounts;
+    }
+
+        function deployaddress()public view returns(address){
+      return address(this);
+    }
 }
