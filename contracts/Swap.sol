@@ -6,7 +6,7 @@ import "./SelfToken.sol";
 
 contract Swap {
     address public feeRecipient;
-    uint256 public feePercentage;
+    uint public feePercentage;
     uint256 private AsdPrice;
     uint256 public EthPrice;
     uint256 public UsdtPrice;
@@ -22,9 +22,9 @@ contract Swap {
     address public UsdtAddress = 0x0a023a3423D9b27A0BE48c768CCF2dD7877fEf5E;
     address public ArbAddress = 0x2eE9BFB2D319B31A573EA15774B755715988E99D;
 
-    constructor(uint256 _feePercentage) {
+    constructor(uint _feePercentage) {
         feeRecipient = address(this);
-        // feePercentage = _feePercentage.mul(10 ** 18); // scale up the feePercentage by 10^18
+        feePercentage = _feePercentage;
         AsdPrice = 100000000;
         priceOracle = new TokenPriceOracle(EthAddress, UsdtAddress, ArbAddress);
         // EthPrice = priceOracle.getEthPrice();
@@ -38,72 +38,90 @@ contract Swap {
         ArbSwapPercent = 1;
     }
 
-    // function EthAsdSwapTokens(
-    //     SelfToken tokenA,
-    //     SelfToken tokenB,
-    //     uint256 amountA
-    // ) public {
-    //     // uint256 feeAmount = amountA.mul(feePercentage).div(10 ** 20); // scale down the result
-    //     uint256 amountToSwap = amountA.sub(feeAmount);
-
-    //     // Get price for both tokens
-    //     uint256 amountB = amountToSwap.mul(EthSwapPercent);
-
-    //     require(
-    //         tokenA.transferFrom(msg.sender, feeRecipient, feeAmount),
-    //         "Transfer of fee failed"
-    //     );
-    //     require(
-    //         tokenA.transferFrom(msg.sender, address(this), amountToSwap),
-    //         "Transfer of tokenA failed"
-    //     );
-    //     require(
-    //         tokenB.transfer(msg.sender, amountB),
-    //         "Transfer of tokenB failed"
-    //     );
-    // }
-
-    // function UsdtAsdSwapTokens(
-    //     SelfToken tokenA,
-    //     SelfToken tokenB,
-    //     uint256 amountA
-    // ) public {
-    //     uint256 feeAmount = amountA.mul(feePercentage).div(10 ** 20);
-    //     uint256 amountToSwap = amountA.sub(feeAmount);
-
-    //     uint256 amountB = amountToSwap.mul(UsdtSwapPercent);
-
-    //     require(
-    //         tokenA.transferFrom(msg.sender, feeRecipient, feeAmount),
-    //         "Transfer of fee failed"
-    //     );
-    //     require(
-    //         tokenA.transferFrom(msg.sender, address(this), amountToSwap),
-    //         "Transfer of tokenA failed"
-    //     );
-    //     require(
-    //         tokenB.transfer(msg.sender, amountB),
-    //         "Transfer of tokenB failed"
-    //     );
-    // }
-    function testFunction(uint256 _amountA) public {
-        testValue = _amountA * ArbSwapPercent;
-    }
-
-    function ArbAsdSwapTokens(
-        SelfToken tokenA,
-        SelfToken tokenB,
+    function differTokenSwap(
+        address tokenA,
+        address tokenB,
+        address _userAccount,
+        address _contractAddress,
         uint256 amountA
     ) public {
-        // uint256 feeAmount = amountA.mul(feePercentage).div(10 ** 20);
-        // uint256 amountToSwap = amountA.sub(feeAmount);
-        uint256 amountToSwap = amountA;
+        uint256 amountB;
+        uint256 feeAmount;
+        uint256 amountToSwap;
+        uint256 swapPercent;
+        if (
+            keccak256(bytes(SelfToken(tokenA).name())) ==
+            keccak256(bytes("ARB"))
+        ) {
+            swapPercent = ArbSwapPercent;
+        } else if (
+            keccak256(bytes(SelfToken(tokenA).name())) ==
+            keccak256(bytes("USDT"))
+        ) {
+            swapPercent = UsdtSwapPercent;
+        } else if (
+            keccak256(bytes(SelfToken(tokenA).name())) ==
+            keccak256(bytes("ETH"))
+        ) {
+            swapPercent = EthSwapPercent;
+        } else {
+            revert("Unsupported token");
+        }
 
-        // uint256 priceA = priceOracle.getArbPrice();
-        uint256 amountB = amountToSwap * ArbSwapPercent;
-        // testValue = amountB;
-        // tokenB.approve(msg.sender, amountB);
-        tokenA.transferFrom(msg.sender, address(this), amountA);
-        tokenB.transferFrom(address(this), msg.sender, amountB);
+        (feeAmount, amountToSwap) = calculateFeesAndAmountToSwap(amountA);
+
+        amountB = calculateAmountB(amountToSwap, swapPercent);
+
+        conductTransfer(
+            tokenA,
+            tokenB,
+            _userAccount,
+            _contractAddress,
+            amountA,
+            amountB,
+            feeAmount,
+            amountToSwap
+        );
+    }
+
+    function calculateFeesAndAmountToSwap(
+        uint256 amountA
+    ) public view returns (uint256 feeAmount, uint256 amountToSwap) {
+        uint256 _feePercentage = feePercentage * 10 ** 17;
+        feeAmount = (amountA / 10 ** 18) * _feePercentage;
+        amountToSwap = amountA - feeAmount;
+        return (feeAmount, amountToSwap);
+    }
+
+    function calculateAmountB(
+        uint256 amountToSwap,
+        uint256 swapPercent
+    ) public pure returns (uint256) {
+        return amountToSwap * swapPercent;
+    }
+
+    function conductTransfer(
+        address tokenA,
+        address tokenB,
+        address _userAccount,
+        address _contractAddress,
+        uint256 amountA,
+        uint256 amountB,
+        uint256 feeAmount,
+        uint256 amountToSwap
+    ) public payable {
+        SelfToken(tokenA).approve(_contractAddress, amountA);
+        SelfToken(tokenB).approve(_contractAddress, amountB);
+        SelfToken(tokenA).transferFrom(
+            _userAccount,
+            _contractAddress,
+            feeAmount
+        );
+        SelfToken(tokenA).transferFrom(
+            _userAccount,
+            _contractAddress,
+            amountToSwap
+        );
+        SelfToken(tokenB).transferFrom(_contractAddress, _userAccount, amountB);
     }
 }

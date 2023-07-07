@@ -52,7 +52,7 @@ contract SelfToken is ERC20 {
         uint256 amount
     ) public override returns (bool) {
         _transfer(from, to, amount);
-        // _spendAllowance(from, to, amount);
+        _spendAllowance(from, to, amount);
         return true;
     }
 
@@ -110,8 +110,8 @@ contract SelfToken is ERC20 {
     }
 
     function mint(uint256 _amount) external {
-        _mint(deployAddress, _amount);
-        approve(deployAddress, _amount);
+        _mint(deployAddress, (_amount * 10 ** 18));
+        approve(deployAddress, (_amount * 10 ** 18));
         tokenLevel[deployAddress] = 1;
     }
 
@@ -184,7 +184,7 @@ contract SelfToken is ERC20 {
         address spender,
         uint256 amount
     ) internal override {
-        uint256 currentAllowance = allowance(owner, owner);
+        uint256 currentAllowance = allowance(deployAddress, owner);
         if (currentAllowance != type(uint256).max) {
             require(
                 currentAllowance >= amount,
